@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumina Studio — Web Design, Shaders & UI Effects Lab</title>
+  <meta name="description" content="Éditeur web tout-en-un de shaders WebGL2, lumières atmosphériques, animations typographiques et composants UI premium." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Hidden SVG Filters for Apple Liquid Glass Refraction & Optical Effects -->
+  <svg class="svg-defs" aria-hidden="true" width="0" height="0">
+    <defs>
+      <filter id="lumina-liquid-glass" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence id="lg-turbulence" type="fractalNoise" baseFrequency="0.014 0.018" numOctaves="2" seed="7" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="2.5" result="smoothNoise" />
+        <feDisplacementMap id="lg-displacement" in="SourceGraphic" in2="smoothNoise" scale="18" xChannelSelector="R" yChannelSelector="G" result="displaced" />
+        <feSpecularLighting in="smoothNoise" surfaceScale="3" specularConstant="0.7" specularExponent="28" lighting-color="#ffffff" result="specular">
+          <fePointLight id="lg-light" x="120" y="40" z="180" />
+        </feSpecularLighting>
+        <feComposite in="specular" in2="SourceAlpha" operator="in" result="clippedSpec" />
+        <feBlend in="displaced" in2="clippedSpec" mode="screen" />
+      </filter>
+    </defs>
+  </svg>
+
+  <div id="app" class="studio-shell">
+    <!-- ==================== TOP BAR ==================== -->
+    <header class="topbar" role="banner">
+      <div class="topbar-left">
+        <div class="brand" title="Lumina Studio v1.0">
+          <span class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
+              <path d="M12 2L21 7.2V16.8L12 22L3 16.8V7.2L12 2Z" stroke="url(#brandGrad)" stroke-width="1.8" />
+              <path d="M12 2V12M12 12L21 7.2M12 12L3 7.2M12 12V22" stroke="url(#brandGrad)" stroke-width="1.3" stroke-opacity="0.7" />
+              <circle cx="12" cy="12" r="2.2" fill="#fff" />
+              <defs>
+                <linearGradient id="brandGrad" x1="3" y1="2" x2="21" y2="22" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#818cf8" />
+                  <stop offset="0.5" stop-color="#38bdf8" />
+                  <stop offset="1" stop-color="#f472b6" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </span>
+          <span class="brand-name">Lumina <span class="brand-tag">Studio</span></span>
+        </div>
+
+        <div class="divider-v"></div>
+
+        <!-- Atelier / Stage Mode Selector -->
+        <div class="segmented-control" id="atelier-mode-control" role="tablist" aria-label="Mode d'atelier">
+          <button class="seg-btn active" data-atelier="hero" role="tab" aria-selected="true" title="Aperçu Hero Section complète">Hero</button>
+          <button class="seg-btn" data-atelier="component" role="tab" aria-selected="false" title="Composant isolé centré">Composant</button>
+          <button class="seg-btn" data-atelier="type" role="tab" aria-selected="false" title="Laboratoire Typographique">Typo</button>
+          <button class="seg-btn" data-atelier="shader" role="tab" aria-selected="false" title="Fond Shader & Lumières seuls">Shader</button>
+        </div>
+
+        <span class="fps-badge" id="fps-meter" title="Images par seconde en temps réel">60 FPS</span>
+      </div>
+
+      <!-- Center: Presets Strip -->
+      <div class="topbar-center">
+        <div class="presets-strip" id="presets-strip" role="listbox" aria-label="Presets visuels">
+          <!-- Populated dynamically from presets.js -->
+        </div>
+      </div>
+
+      <!-- Right: Actions -->
+      <div class="topbar-right">
+        <!-- Viewport toggles -->
+        <div class="icon-group" role="group" aria-label="Format d'écran">
+          <button class="icon-btn active" id="vp-desktop" title="Vue Desktop (1)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="2" y="4" width="20" height="13" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="vp-mobile" title="Vue Mobile (2)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="6" y="2" width="12" height="20" rx="2.5" />
+              <line x1="10" y1="18.5" x2="14" y2="18.5" stroke-linecap="round" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="vp-fullscreen" title="Plein écran (F)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="divider-v"></div>
+
+        <!-- Randomize -->
+        <button class="btn-ghost" id="btn-randomize" title="Générer une combinaison harmonieuse aléatoire (R)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9">
+            <rect x="3" y="3" width="18" height="18" rx="3.5" />
+            <circle cx="8.5" cy="8.5" r="1.2" fill="currentColor" />
+            <circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" />
+            <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+            <circle cx="8.5" cy="15.5" r="1.2" fill="currentColor" />
+            <circle cx="15.5" cy="15.5" r="1.2" fill="currentColor" />
+          </svg>
+          <span class="btn-label">Inspire-moi</span>
+        </button>
+
+        <!-- JSON Save/Load dropdown trigger -->
+        <div class="dropdown-wrap">
+          <button class="icon-btn" id="btn-json-menu" title="Sauvegarder / Importer JSON">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1" />
+            </svg>
+          </button>
+          <div class="popover-menu" id="json-popover" hidden>
+            <button class="popover-item" id="btn-save-json">
+              <span>Exporter projet (.json)</span>
+            </button>
+            <button class="popover-item" id="btn-import-json">
+              <span>Importer projet (.json)</span>
+            </button>
+            <input type="file" id="json-file-input" accept=".json,application/json" hidden />
+          </div>
+        </div>
+
+        <!-- Media Capture (PNG / WebM) -->
+        <div class="dropdown-wrap">
+          <button class="icon-btn" id="btn-capture-menu" title="Capture PNG / Clip WebM">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M23 7l-7 5 7 5V7z" />
+              <rect x="1" y="5" width="15" height="14" rx="2.5" />
+            </svg>
+            <span class="rec-dot" id="rec-dot" hidden></span>
+          </button>
+          <div class="popover-menu" id="capture-popover" hidden>
+            <button class="popover-item" id="btn-snap-png">
+              <span>Capture image (.png)</span>
+            </button>
+            <button class="popover-item" id="btn-record-webm">
+              <span id="record-webm-label">Enregistrer clip 4s (.webm)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Primary CTA: Export Code -->
+        <button class="btn-primary-export" id="btn-open-export" title="Ouvrir l'exporteur de code prêt pour la production (E)">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="16 18 22 12 16 6" />
+            <polyline points="8 6 2 12 8 18" />
+          </svg>
+          <span>Exporter le Code</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ==================== MAIN WORKSPACE ==================== -->
+    <div class="workspace">
+      <!-- LEFT PANEL: Stackable Layers & Modules -->
+      <aside class="panel panel-left" aria-label="Calques et Modules">
+        <div class="panel-header">
+          <span class="panel-title">Calques & Modules</span>
+          <span class="panel-badge" id="active-layers-count">6 actifs</span>
+        </div>
+
+        <div class="layers-list" id="layers-list" role="list">
+          <!-- Layer 1: Background -->
+          <div class="layer-card active" data-module="background" role="listitem" tabindex="0">
+            <div class="layer-icon layer-icon-bg">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <path d="M3 15c4-3 7 2 11-2s4-5 7-3" />
+              </svg>
+            </div>
+            <div class="layer-info">
+              <div class="layer-name">Fond Animé</div>
+              <div class="layer-sub" id="sub-background">Mesh Gradient · WebGL2</div>
+            </div>
+            <label class="switch" title="Activer / Masquer ce calque" onclick="event.stopPropagation()">
+              <input type="checkbox" data-toggle="background" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Layer 2: Lighting & Atmosphere -->
+          <div class="layer-card" data-module="lighting" role="listitem" tabindex="0">
+            <div class="layer-icon layer-icon-light">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12" />
+              </svg>
+            </div>
+            <div class="layer-info">
+              <div class="layer-name">Lumières & Atmosphère</div>
+              <div class="layer-sub" id="sub-lighting">Spotlights · Orbs · Grain</div>
+            </div>
+            <label class="switch" title="Activer / Masquer ce calque" onclick="event.stopPropagation()">
+              <input type="checkbox" data-toggle="lighting" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Layer 3: Typography & Text FX -->
+          <div class="layer-card" data-module="textfx" role="listitem" tabindex="0">
+            <div class="layer-icon layer-icon-type">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M4 7V4h16v3M9 20h6M12 4v16" />
+              </svg>
+            </div>
+            <div class="layer-info">
+              <div class="layer-name">Typographie & Texte</div>
+              <div class="layer-sub" id="sub-textfx">Split-Text Reveal</div>
+            </div>
+            <label class="switch" title="Activer / Masquer ce calque" onclick="event.stopPropagation()">
+              <input type="checkbox" data-toggle="textfx" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Layer 4: UI Components & Cards -->
+          <div class="layer-card" data-module="components" role="listitem" tabindex="0">
+            <div class="layer-icon layer-icon-ui">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="4" width="18" height="12" rx="2.5" />
+                <path d="M7 20h10" stroke-linecap="round" />
+                <circle cx="8" cy="10" r="1.5" />
+                <path d="M12 9h5M12 12h3" stroke-linecap="round" />
+              </svg>
+            </div>
+            <div class="layer-info">
+              <div class="layer-name">Composants UI & Cartes</div>
+              <div class="layer-sub" id="sub-components">Bento Beam · Dock</div>
+            </div>
+            <label class="switch" title="Activer / Masquer ce calque" onclick="event.stopPropagation()">
+              <input type="checkbox" data-toggle="components" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Layer 5: Cursor & Micro-Interactions -->
+          <div class="layer-card" data-module="cursor" role="listitem" tabindex="0">
+            <div class="layer-icon layer-icon-cursor">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M5 3l14 8-6.5 1.8L10.7 19 5 3z" />
+              </svg>
+            </div>
+            <div class="layer-info">
+              <div class="layer-name">Curseur & Micro-FX</div>
+              <div class="layer-sub" id="sub-cursor">Lerp · Sparks · Trail</div>
+            </div>
+            <label class="switch" title="Activer / Masquer ce calque" onclick="event.stopPropagation()">
+              <input type="checkbox" data-toggle="cursor" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Layer 6: Motion Lab -->
+          <div class="layer-card" data-module="motion" role="listitem" tabindex="0">
+            <div class="layer-icon layer-icon-motion">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 17c4 0 5-12 9-12s4 8 9 8" stroke-linecap="round" />
+                <circle cx="12" cy="5" r="1.8" fill="currentColor" />
+              </svg>
+            </div>
+            <div class="layer-info">
+              <div class="layer-name">Motion Lab</div>
+              <div class="layer-sub" id="sub-motion">Spring · 1.0x · 45ms</div>
+            </div>
+            <span class="layer-pill-fixed">GLOBAL</span>
+          </div>
+        </div>
+
+        <!-- Quick Palettes (Realtime Colors inspired) -->
+        <div class="panel-section-mini">
+          <div class="section-mini-header">
+            <span>Palettes Harmonieuses</span>
+            <span class="hint-mono">1-clic</span>
+          </div>
+          <div class="palettes-grid" id="quick-palettes">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <div class="panel-footer">
+          <button class="btn-subtle btn-full" id="btn-replay-all" title="Rejouer toutes les animations (Space)">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+            <span>Rejouer l'animation</span>
+          </button>
+          <button class="icon-btn" id="btn-pause-engine" title="Pause / Lecture du rendu (P)">
+            <svg id="icon-pause" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+            <svg id="icon-play" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" hidden>
+              <polygon points="6 4 20 12 6 20 6 4" />
+            </svg>
+          </button>
+        </div>
+      </aside>
+
+      <!-- CENTER VIEWPORT: Interactive Live Stage -->
+      <main class="viewport-wrap" id="viewport-wrap" role="main">
+        <div class="stage-frame mode-desktop" id="stage-frame">
+          <div class="stage" id="stage" data-atelier="hero">
+            <!-- Layer 1: WebGL2 / Canvas 2D Animated Background -->
+            <canvas id="bg-canvas" class="stage-canvas"></canvas>
+
+            <!-- Layer 2: Atmospheric Lighting, Orbs, Grain, Vignette -->
+            <div id="lighting-layer" class="lighting-layer" aria-hidden="true">
+              <div class="hero-spotlight spot-left"></div>
+              <div class="hero-spotlight spot-right"></div>
+              <div class="ambient-orb orb-1"></div>
+              <div class="ambient-orb orb-2"></div>
+              <div class="ambient-orb orb-3"></div>
+              <div class="cursor-spotlight" id="cursor-spotlight"></div>
+              <div class="lens-glow" id="lens-glow"></div>
+              <canvas id="grain-canvas" class="grain-canvas"></canvas>
+              <div class="vignette-overlay" id="vignette-overlay"></div>
+            </div>
+
+            <!-- Layer 3: Scene Content (Hero / Component / Type) -->
+            <div class="scene-content" id="scene-content">
+              <!-- Top Nav Mockup (Hero Mode subtle chrome) -->
+              <div class="scene-nav" id="scene-nav">
+                <div class="scene-nav-brand">
+                  <span class="scene-nav-dot"></span>
+                  <span>LUMINA</span>
+                </div>
+                <div class="scene-nav-links">
+                  <span>Shaders</span>
+                  <span>Motion</span>
+                  <span>Craft</span>
+                </div>
+                <div class="scene-nav-pill">v2.6</div>
+              </div>
+
+              <!-- Hero & Typography Block -->
+              <div class="hero-stack" id="hero-stack">
+                <!-- Luminous Badge / Pill -->
+                <div class="lumina-badge-wrap" id="lumina-badge-wrap">
+                  <div class="lumina-badge" id="lumina-badge">
+                    <span class="badge-pulse"></span>
+                    <span class="badge-text" id="badge-text">Design Engineering · 60 FPS WebGL2</span>
+                    <span class="badge-arrow">→</span>
+                  </div>
+                </div>
+
+                <!-- Circular Rotating Text (optional / toggleable) -->
+                <div class="circular-text-wrap" id="circular-text-wrap" hidden>
+                  <svg viewBox="0 0 180 180" width="132" height="132" class="circular-svg">
+                    <defs>
+                      <path id="circular-path" d="M 90, 90 m -62, 0 a 62,62 0 1,1 124,0 a 62,62 0 1,1 -124,0" />
+                    </defs>
+                    <g class="circular-spinner" id="circular-spinner">
+                      <text>
+                        <textPath href="#circular-path" id="circular-text-path" startOffset="0%">
+                          LUMINA STUDIO • CRAFTED INTERFACES • SHADERS &amp; MOTION •
+                        </textPath>
+                      </text>
+                    </g>
+                    <circle cx="90" cy="90" r="24" class="circular-center-ring" />
+                    <circle cx="90" cy="90" r="4" class="circular-center-dot" />
+                  </svg>
+                </div>
+
+                <!-- Main Headline (Editable & Animated) -->
+                <div class="headline-block" id="headline-block">
+                  <h1 class="hero-headline" id="hero-headline" data-text="Craft interfaces that feel alive.">
+                    Craft interfaces that feel alive.
+                  </h1>
+                  <p class="hero-subtitle" id="hero-subtitle">
+                    Shaders WebGL2 temps réel, verre liquide optique, lumières volumétriques et micro-interactions calibrées au pixel près.
+                  </p>
+                </div>
+
+                <!-- Kinetic Marquee (optional / active in marquee mode or toggle) -->
+                <div class="marquee-wrap" id="marquee-wrap" hidden>
+                  <div class="marquee-track" id="marquee-track">
+                    <span class="marquee-item">LUMINA STUDIO</span>
+                    <span class="marquee-sep">✦</span>
+                    <span class="marquee-item outline">LIQUID GLASS</span>
+                    <span class="marquee-sep">✦</span>
+                    <span class="marquee-item">HOLOSPOT FOIL</span>
+                    <span class="marquee-sep">✦</span>
+                    <span class="marquee-item outline">WEBGL2 SHADERS</span>
+                    <span class="marquee-sep">✦</span>
+                    <span class="marquee-item">LUMINA STUDIO</span>
+                    <span class="marquee-sep">✦</span>
+                    <span class="marquee-item outline">LIQUID GLASS</span>
+                    <span class="marquee-sep">✦</span>
+                    <span class="marquee-item">HOLOSPOT FOIL</span>
+                    <span class="marquee-sep">✦</span>
+                    <span class="marquee-item outline">WEBGL2 SHADERS</span>
+                    <span class="marquee-sep">✦</span>
+                  </div>
+                </div>
+
+                <!-- Action Buttons Row -->
+                <div class="cta-row" id="cta-row">
+                  <button class="lumina-btn btn-style-border-beam" id="primary-cta" data-interactive="true">
+                    <span class="btn-beam-border"></span>
+                    <span class="btn-shimmer-layer"></span>
+                    <span class="btn-inner">
+                      <span class="btn-text" id="primary-cta-text">Lancer l'expérience</span>
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="M5 12h14M13 5l7 7-7 7" />
+                      </svg>
+                    </span>
+                  </button>
+
+                  <button class="lumina-btn-secondary" id="secondary-cta" data-interactive="true">
+                    <span>Explorer les shaders</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Interactive UI Card Showcase -->
+              <div class="showcase-area" id="showcase-area">
+                <div class="showcase-card card-style-bento" id="showcase-card" data-interactive="true">
+                  <!-- Border Beam Rotating Layer -->
+                  <div class="card-border-beam" aria-hidden="true"></div>
+                  <!-- Internal Mouse Spotlight -->
+                  <div class="card-spotlight" id="card-spotlight" aria-hidden="true"></div>
+                  <!-- Holospot Iridescent Foil + Glare -->
+                  <div class="card-holo-foil" id="card-holo-foil" aria-hidden="true"></div>
+                  <div class="card-holo-glare" id="card-holo-glare" aria-hidden="true"></div>
+                  <!-- Liquid Glass Specular Rim -->
+                  <div class="card-liquid-rim" aria-hidden="true"></div>
+
+                  <div class="card-body">
+                    <div class="card-header-row">
+                      <div class="card-icon-chip">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      </div>
+                      <span class="card-chip-tag" id="card-style-label">Bento Border Beam</span>
+                    </div>
+
+                    <div class="card-title" id="card-title">Lumina Optical Engine</div>
+                    <p class="card-desc" id="card-desc">
+                      Réfraction optique, réflexion holographique temps réel et bordure lumineuse GPU accélérée.
+                    </p>
+
+                    <div class="card-metrics">
+                      <div class="metric">
+                        <span class="metric-val">0.4ms</span>
+                        <span class="metric-lbl">Frame Time</span>
+                      </div>
+                      <div class="metric">
+                        <span class="metric-val">60 FPS</span>
+                        <span class="metric-lbl">GPU Pipeline</span>
+                      </div>
+                      <div class="metric">
+                        <span class="metric-val">0 KB</span>
+                        <span class="metric-lbl">Runtime Deps</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- macOS Interactive Glass Dock -->
+              <div class="macos-dock-wrap" id="macos-dock-wrap">
+                <div class="macos-dock" id="macos-dock" role="toolbar" aria-label="Dock macOS interactif">
+                  <button class="dock-item" data-label="Shaders" data-dock-action="background" data-interactive="true">
+                    <span class="dock-tooltip">Shaders</span>
+                    <span class="dock-glyph g-indigo">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/></svg>
+                    </span>
+                  </button>
+                  <button class="dock-item" data-label="Lumières" data-dock-action="lighting" data-interactive="true">
+                    <span class="dock-tooltip">Lumières</span>
+                    <span class="dock-glyph g-amber">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3"/></svg>
+                    </span>
+                  </button>
+                  <button class="dock-item" data-label="Typo FX" data-dock-action="textfx" data-interactive="true">
+                    <span class="dock-tooltip">Typo FX</span>
+                    <span class="dock-glyph g-pink">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+                    </span>
+                  </button>
+                  <button class="dock-item" data-label="UI Craft" data-dock-action="components" data-interactive="true">
+                    <span class="dock-tooltip">UI Craft</span>
+                    <span class="dock-glyph g-cyan">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                    </span>
+                  </button>
+                  <button class="dock-item" data-label="Curseur" data-dock-action="cursor" data-interactive="true">
+                    <span class="dock-tooltip">Curseur</span>
+                    <span class="dock-glyph g-emerald">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3l14 8-6.5 1.8L10.7 19 5 3z"/></svg>
+                    </span>
+                  </button>
+                  <div class="dock-divider"></div>
+                  <button class="dock-item" data-label="Aléatoire" data-dock-action="randomize" data-interactive="true">
+                    <span class="dock-tooltip">Inspire-moi</span>
+                    <span class="dock-glyph g-violet">
+                      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z"/></svg>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Layer 4: Cursor Trail, Click Sparks & Spotlight Mask -->
+            <canvas id="fx-canvas" class="stage-fx-canvas"></canvas>
+
+            <!-- Layer 5: Custom Smooth Lerp Cursor -->
+            <div class="custom-cursor" id="custom-cursor" aria-hidden="true">
+              <div class="cursor-ring" id="cursor-ring"></div>
+              <div class="cursor-dot" id="cursor-dot"></div>
+            </div>
+
+            <!-- Exit Fullscreen Floating Pill -->
+            <button class="exit-fs-btn" id="btn-exit-fs" hidden>
+              Quitter le plein écran (Esc)
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <!-- RIGHT PANEL: Dynamic Inspector -->
+      <aside class="panel panel-right" aria-label="Inspecteur de propriétés">
+        <div class="panel-header">
+          <div class="inspector-title-group">
+            <span class="panel-title" id="inspector-title">Fond Animé</span>
+            <span class="inspector-subtitle" id="inspector-subtitle">Shader WebGL2 & Canvas</span>
+          </div>
+          <button class="btn-mini-reset" id="btn-reset-module" title="Réinitialiser ce module">Reset</button>
+        </div>
+
+        <div class="inspector-scroll" id="inspector-body">
+          <!-- Dynamically populated by app.js based on selected module -->
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ==================== CODE EXPORT DRAWER ==================== -->
+  <div class="drawer-backdrop" id="export-backdrop" hidden>
+    <div class="export-drawer" id="export-drawer" role="dialog" aria-modal="true" aria-labelledby="export-drawer-title">
+      <div class="drawer-header">
+        <div>
+          <h2 id="export-drawer-title" class="drawer-title">Exporter le Code</h2>
+          <p class="drawer-sub">Code propre, minimal et prêt pour la production</p>
+        </div>
+        <button class="icon-btn" id="btn-close-export" aria-label="Fermer">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="drawer-toolbar">
+        <!-- Format tabs -->
+        <div class="segmented-control" id="export-format-tabs" role="tablist">
+          <button class="seg-btn active" data-format="html" role="tab" aria-selected="true">HTML / CSS / JS</button>
+          <button class="seg-btn" data-format="react" role="tab" aria-selected="false">React + Tailwind</button>
+          <button class="seg-btn" data-format="tokens" role="tab" aria-selected="false">CSS Tokens</button>
+        </div>
+
+        <!-- Scope toggle -->
+        <div class="segmented-control" id="export-scope-tabs" role="tablist">
+          <button class="seg-btn active" data-scope="scene" role="tab" aria-selected="true">Scène complète</button>
+          <button class="seg-btn" data-scope="module" role="tab" aria-selected="false" id="export-scope-module-btn">Calque actif</button>
+        </div>
+      </div>
+
+      <div class="code-container">
+        <div class="code-meta-bar">
+          <span class="code-filename" id="code-filename">lumina-scene.html</span>
+          <div class="code-actions">
+            <button class="btn-subtle" id="btn-download-code">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              <span>Télécharger</span>
+            </button>
+            <button class="btn-copy-primary" id="btn-copy-code">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <span id="copy-btn-label">Copier en 1 clic</span>
+            </button>
+          </div>
+        </div>
+        <pre class="code-pre"><code id="code-output"></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <!-- Modular Architecture (zero external runtime deps, works on file:// & GitHub Pages) -->
+  <script src="presets.js"></script>
+  <script src="backgrounds.js"></script>
+  <script src="lighting.js"></script>
+  <script src="textfx.js"></script>
+  <script src="components.js"></script>
+  <script src="cursor.js"></script>
+  <script src="exporter.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
